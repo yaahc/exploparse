@@ -1,4 +1,4 @@
-use nom::bytes::complete::{is_a, take, take_till, take_while, take_while_m_n};
+use nom::bytes::complete::{is_a, take, take_while, take_while_m_n};
 use nom::character::complete::anychar;
 use nom::combinator::{map, map_res, opt, verify};
 use nom::error::context;
@@ -43,16 +43,33 @@ impl<'a> Genre<'a> {
 
 impl<'s> Second<'s> {
     fn parse(i: parse::Input<'s>) -> parse::Result<'s, Self> {
-        let (mut after, second) = take_till(|c: char| c.is_alphabetic())(i)?;
-
-        let mut second = second.trim_end();
-
-        // if it ends in a . backtrack by one character
-        if second.ends_with('.') {
-            second = &second[0..second.len() - 1];
-            after = &i[second.len()..];
+        let mut seen_dot = false;
+        let mut prev = None;
+        let mut end = None;
+        for (ind, c) in i.chars().enumerate() {
+            match c {
+                '.' => if seen_dot {
+                    end = Some(ind);
+                    break;
+                } else {
+                    seen_dot = true;
+                },
+                'A'..='Z' => if prev == Some('.') {
+                    end = Some(ind - 1);
+                    break;
+                } else {
+                    end = Some(ind);
+                    break;
+                }
+                _ => (),
+            }
+            prev = Some(c);
         }
 
+        let end = end.ok_or_else(|| nom::Err::Error(parse::Error { errors: vec![(i, nom::error::ErrorKind::Eof)], }))?;
+
+        let after = &i[end..];
+        let second = &i[..end];
         let second = second.trim();
 
         Ok((after, Second(second)))
