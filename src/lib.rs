@@ -1,6 +1,6 @@
 use nom::bytes::complete::{is_a, take, take_till, take_while, take_while_m_n};
 use nom::character::complete::anychar;
-use nom::combinator::{map, opt, verify};
+use nom::combinator::{map, map_res, opt, verify};
 use nom::error::context;
 
 mod parse;
@@ -12,10 +12,10 @@ pub struct Genre<'s>(&'s str);
 pub struct Second<'s>(&'s str);
 
 #[derive(Debug, PartialEq)]
-pub struct Third<'s>(&'s str);
-
-#[derive(Debug, PartialEq)]
-pub struct Fourth<'s>(&'s str);
+pub struct Third<'s> {
+    has_dot: bool,
+    body: &'s str,
+}
 
 #[derive(Debug, PartialEq)]
 pub struct Year {
@@ -27,8 +27,8 @@ pub struct Year {
 pub struct LC<'s> {
     genre: Genre<'s>,
     second: Second<'s>,
-    third: Option<Third<'s>>,
-    fourth: Option<Fourth<'s>>,
+    third: Third<'s>,
+    fourth: Option<Third<'s>>,
     year: Option<Year>,
 }
 
@@ -43,54 +43,44 @@ impl<'a> Genre<'a> {
 
 impl<'s> Second<'s> {
     fn parse(i: parse::Input<'s>) -> parse::Result<'s, Self> {
-        let until_char = take_till(|c: char| c.is_alphabetic() || c.is_whitespace());
-        let until_dot = take_till(|c| c == '.');
-        let (i, _) = opt(is_a(" "))(i)?;
+        let (mut after, second) = take_till(|c: char| c.is_alphabetic())(i)?;
 
-        let (i_char, s) = until_char(i)?;
-        if s.ends_with('.') {
-            map(until_dot, Second)(i)
-        } else {
-            Ok((i_char, Second(s)))
+        let mut second = second.trim_end();
+
+        // if it ends in a . backtrack by one character
+        if second.ends_with('.') {
+            second = &second[0..second.len() - 1];
+            after = &i[second.len()..];
         }
+
+        let second = second.trim();
+
+        Ok((after, Second(second)))
     }
 }
 
-impl<'a> Third<'a> {
-    fn parse(i: parse::Input<'a>) -> parse::Result<'a, Self> {
+impl<'s> Third<'s> {
+    fn parse(i: parse::Input<'s>) -> parse::Result<'s, Self> {
         let (i, _) = opt(is_a(" "))(i)?;
-        context(
+        let (i, has_dot) = map(opt(nom::character::complete::char('.')), |dot| {
+            dot.is_some()
+        })(i)?;
+        let (i, _) = opt(is_a(" "))(i)?;
+        let (i, body) = context(
             "Third",
-            map(
-                verify(take_while(|c| c != ' '), |s: &str| {
-                    s.chars().next().map(|c| c == '.').unwrap_or(false)
-                }),
-                Third,
-            ),
-        )(i)
-    }
-}
+            verify(take_while(|c: char| c.is_alphanumeric()), |s: &str| {
+                s.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false)
+            }),
+        )(i)?;
 
-impl<'a> Fourth<'a> {
-    fn parse(i: parse::Input<'a>) -> parse::Result<'a, Self> {
-        let (i, _) = is_a(" ")(i)?;
-        context(
-            "Fourth",
-            map(
-                verify(take_while(|c| c != ' '), |s: &str| {
-                    s.chars().next().map(|c| !c.is_digit(10)).unwrap_or(false)
-                }),
-                Fourth,
-            ),
-        )(i)
+        Ok((i, Third { has_dot, body }))
     }
 }
 
 impl Year {
     fn parse(i: parse::Input) -> parse::Result<Self> {
-        let (i, _) = is_a(" ")(i)?;
-        let (i, year) = take(4usize)(i)?;
-        let year = year.parse().unwrap();
+        let (i, _) = opt(is_a(" "))(i)?;
+        let (i, year) = map_res(take(4usize), str::parse)(i)?;
         let (i, suffix) = opt(verify(anychar, |c| c.is_alphabetic()))(i)?;
 
         Ok((i, Year { year, suffix }))
@@ -102,26 +92,33 @@ impl<'a> LC<'a> {
         if i.is_empty() {
             Ok(None)
         } else {
-            LC::parse(i).map(|(_, lc)| Some(lc))
+            let (_, lc) = LC::parse(i)?;
+            Ok(Some(lc))
         }
     }
 
     pub fn parse(i: parse::Input<'a>) -> parse::Result<'a, Self> {
         let (i, genre) = Genre::parse(i)?;
         let (i, second) = Second::parse(i)?;
-        let (i, third) = opt(Third::parse)(i)?;
-        let (i, fourth) = opt(Fourth::parse)(i)?;
-        let (i, year) = opt(Year::parse)(i)?;
-        Ok((
-            i,
-            Self {
-                genre,
-                second,
-                third,
-                fourth,
-                year,
-            },
-        ))
+        let (i, third) = Third::parse(i)?;
+        let (i, fourth) = opt(Third::parse)(i)?;
+        let (extra, year) = opt(Year::parse)(i)?;
+        if !extra.trim().is_empty() {
+            Err(nom::Err::Failure(parse::Error {
+                errors: vec![(extra, nom::error::ErrorKind::NonEmpty)],
+            }))
+        } else {
+            Ok((
+                extra,
+                Self {
+                    genre,
+                    second,
+                    third,
+                    fourth,
+                    year,
+                },
+            ))
+        }
     }
 }
 
@@ -135,8 +132,14 @@ mod tests {
         let expected = LC {
             genre: Genre("TD"),
             second: Second("224"),
-            third: Some(Third(".C3")),
-            fourth: Some(Fourth("C3723")),
+            third: Third {
+                has_dot: true,
+                body: "C3",
+            },
+            fourth: Some(Third {
+                has_dot: false,
+                body: "C3723",
+            }),
             year: Some(Year {
                 year: 2009,
                 suffix: None,
@@ -152,7 +155,10 @@ mod tests {
         let expected = LC {
             genre: Genre("GB"),
             second: Second("658"),
-            third: Some(Third(".C43")),
+            third: Third {
+                has_dot: true,
+                body: "C43",
+            },
             fourth: None,
             year: Some(Year {
                 year: 2005,
@@ -169,7 +175,10 @@ mod tests {
         let expected = LC {
             genre: Genre("GC"),
             second: Second("21.5"),
-            third: Some(Third(".S56")),
+            third: Third {
+                has_dot: true,
+                body: "S56",
+            },
             fourth: None,
             year: Some(Year {
                 year: 1988,
@@ -186,8 +195,14 @@ mod tests {
         let expected = LC {
             genre: Genre("TD"),
             second: Second("224"),
-            third: Some(Third(".C3")),
-            fourth: Some(Fourth("C3723")),
+            third: Third {
+                has_dot: true,
+                body: "C3",
+            },
+            fourth: Some(Third {
+                has_dot: false,
+                body: "C3723",
+            }),
             year: Some(Year {
                 year: 2004,
                 suffix: None,
@@ -204,7 +219,10 @@ mod tests {
         let expected = LC {
             genre: Genre("QC"),
             second: Second("920"),
-            third: Some(Third(".Z38")),
+            third: Third {
+                has_dot: true,
+                body: "Z38",
+            },
             fourth: None,
             year: Some(Year {
                 year: 2009,
@@ -223,7 +241,10 @@ mod tests {
         let expected = LC {
             genre: Genre("QC"),
             second: Second("183"),
-            third: Some(Third(".G675")),
+            third: Third {
+                has_dot: true,
+                body: "G675",
+            },
             fourth: None,
             year: None,
         };
@@ -239,10 +260,117 @@ mod tests {
         let expected = LC {
             genre: Genre("HD"),
             second: Second("1695"),
-            third: Some(Third(".K55")),
-            fourth: Some(Fourth(".V5")),
+            third: Third {
+                has_dot: true,
+                body: "K55",
+            },
+            fourth: Some(Third {
+                has_dot: true,
+                body: "V5",
+            }),
             year: Some(Year {
                 year: 2010,
+                suffix: None,
+            }),
+        };
+
+        let (_, lc) = LC::parse(lc).unwrap();
+        assert_eq!(expected, dbg!(lc));
+    }
+
+    // Row { lc: "HD 1695 .55 .K55 .V5 2010" }
+    #[test]
+    fn space_in_float() {
+        let lc = "HD 1695 .55 .K55 .V5 2010";
+        let expected = LC {
+            genre: Genre("HD"),
+            second: Second("1695 .55"),
+            third: Third {
+                has_dot: true,
+                body: "K55",
+            },
+            fourth: Some(Third {
+                has_dot: true,
+                body: "V5",
+            }),
+            year: Some(Year {
+                year: 2010,
+                suffix: None,
+            }),
+        };
+
+        let (_, lc) = LC::parse(lc).unwrap();
+        assert_eq!(expected, dbg!(lc));
+    }
+
+    #[test]
+    fn offset_dots() {
+        let lc = "HD 1695 .55. K55. V5 2010";
+        let expected = LC {
+            genre: Genre("HD"),
+            second: Second("1695 .55"),
+            third: Third {
+                has_dot: true,
+                body: "K55",
+            },
+            fourth: Some(Third {
+                has_dot: true,
+                body: "V5",
+            }),
+            year: Some(Year {
+                year: 2010,
+                suffix: None,
+            }),
+        };
+
+        let (_, lc) = LC::parse(lc).unwrap();
+        assert_eq!(expected, dbg!(lc));
+    }
+
+    // Row { lc: "TD 225 .S25 H26x 2002" }
+    #[test]
+    fn trailing_char() {
+        let lc = "TD 225 .S25 H26x 2002";
+        dbg!(lc);
+        let expected = LC {
+            genre: Genre("TD"),
+            second: Second("225"),
+            third: Third {
+                has_dot: true,
+                body: "S25",
+            },
+            fourth: Some(Third {
+                has_dot: false,
+                body: "H26x",
+            }),
+            year: Some(Year {
+                year: 2002,
+                suffix: None,
+            }),
+        };
+
+        let (_, lc) = LC::parse(lc).unwrap();
+        assert_eq!(expected, dbg!(lc));
+    }
+
+    // Row { lc: "G 4364 .R6 .S6C3 2006" }
+    #[test]
+    fn midstring_char() {
+        let lc = "G 4364 .R6 .S6C3 2006";
+        dbg!(lc);
+        let expected = LC {
+            genre: Genre("G"),
+            second: Second("4364"),
+            third: Third {
+                has_dot: true,
+                body: "R6",
+            },
+            fourth: Some(Third {
+                has_dot: true,
+                body: "S6C3",
+            }),
+            year: Some(Year {
+                year: 2006,
                 suffix: None,
             }),
         };

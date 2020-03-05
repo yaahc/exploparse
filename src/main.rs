@@ -15,8 +15,9 @@ fn main() -> Result<()> {
 
     for result in reader {
         let row: Row = result?;
+        println!("{:?}", row);
         let lc = exploparse::LC::maybe_parse(row.lc.trim()).unwrap();
-        println!("{:?} {:?}", lc, row);
+        println!("{:?}", lc);
     }
 
     Ok(())

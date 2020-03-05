@@ -63,24 +63,23 @@ dependencies = [
  "jane-eyre",
  "nom",
  "serde",
+ "tracing",
 ]
 
 [[package]]
 name = "eyre"
-version = "0.3.0"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e49bcdca5df8db47f31a186a9056fb5b5c03836912693cd4281faf5dbcccd94"
 dependencies = [
- "indenter 0.1.1",
+ "indenter",
 ]
 
 [[package]]
 name = "indenter"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c52213dc499a85f71619c26aa3d2fc661d7a2e06eee5d74b926721609a98731"
-
-[[package]]
-name = "indenter"
 version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0348ad493372c405c44aa5ae1258c3266c004775931d9120a831f64c8d5cdf09"
 
 [[package]]
 name = "itoa"
@@ -90,10 +89,10 @@ checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
 name = "jane-eyre"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "eyre",
- "indenter 0.1.3",
+ "indenter",
  "tracing-error",
 ]
 
@@ -150,9 +149,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "053a8c8bcc71fcce321828dc897a98ab9760bef03a4fc36693c231e5b3216cfe"
+checksum = "2bdc6c187c65bca4260c9011c9e3132efe4909da44726bad24cf7572ae338d7f"
 dependencies = [
  "proc-macro2",
 ]
@@ -245,7 +244,8 @@ dependencies = [
 [[package]]
 name = "tracing"
 version = "0.1.13"
-source = "git+https://github.com/tokio-rs/tracing.git#86d6c1b954a95d4185e8ab8e427836a1f1820934"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1721cc8cf7d770cc4257872507180f35a4797272f5962f24c806af9e7faf52ab"
 dependencies = [
  "cfg-if",
  "tracing-attributes",
@@ -255,7 +255,8 @@ dependencies = [
 [[package]]
 name = "tracing-attributes"
 version = "0.1.7"
-source = "git+https://github.com/tokio-rs/tracing.git#86d6c1b954a95d4185e8ab8e427836a1f1820934"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fbad39da2f9af1cae3016339ad7f2c7a9e870f12e8fd04c4fd7ef35b30c0d2b"
 dependencies = [
  "quote",
  "syn",
@@ -264,15 +265,17 @@ dependencies = [
 [[package]]
 name = "tracing-core"
 version = "0.1.10"
-source = "git+https://github.com/tokio-rs/tracing.git#86d6c1b954a95d4185e8ab8e427836a1f1820934"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0aa83a9a47081cd522c09c81b31aec2c9273424976f922ad61c053b58350b715"
 dependencies = [
  "lazy_static",
 ]
 
 [[package]]
 name = "tracing-error"
-version = "0.1.1"
-source = "git+https://github.com/tokio-rs/tracing.git#86d6c1b954a95d4185e8ab8e427836a1f1820934"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4d7c0b83d4a500748fa5879461652b361edf5c9d51ede2a2ac03875ca185e24"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -281,7 +284,8 @@ dependencies = [
 [[package]]
 name = "tracing-subscriber"
 version = "0.2.2"
-source = "git+https://github.com/tokio-rs/tracing.git#86d6c1b954a95d4185e8ab8e427836a1f1820934"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "feffc1a97b3515cfef0780b5c9542f7e75983e591e730f96aa2ecd0503197111"
 dependencies = [
  "sharded-slab",
  "tracing-core",
