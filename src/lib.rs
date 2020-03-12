@@ -114,7 +114,7 @@ impl<'s> Note<'s> {
         if i.is_empty() {
             Ok(None)
         } else {
-            let (_, note) = Note::parse(i)?;
+            let (_, note) = Note::last_but_not_least(i)?;
             Ok(Some(note))
         }
     }    
