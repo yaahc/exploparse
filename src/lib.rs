@@ -133,19 +133,27 @@ impl<'a> LC<'a> {
     }
 
     pub fn parse(i: parse::Input<'a>) -> parse::Result<'a, Self> {
-        let (i, genre) = Genre::parse(i)?;
-        let (i, second) = Second::parse(i)?;
-        let (i, third) = Third::parse(i)?;
-        let (i, fourth) = opt(Third::parse)(i)?;
-        let (extra, year) = opt(Year::parse)(i)?;
-        let (extra, note) = opt(Note::last_but_not_least)(i)?;
+        let (i, genre) = dbg!(Genre::parse(i)?);
+        let (i, second) = dbg!(Second::parse(i)?);
+        let (i, third) = dbg!(Third::parse(i)?);
+        let (i, fourth) = dbg!(opt(Third::parse)(i))?;
+        let (extra, year) = dbg!(opt(Year::parse)(i))?;
+        let (extra2, note) = dbg!(opt(Note::last_but_not_least)(i))?;
         if !extra.trim().is_empty() {
             Err(nom::Err::Failure(parse::Error {
                 errors: vec![(extra, nom::error::ErrorKind::NonEmpty)],
-            }))
+            }));
+            // if !extra2.trim().is_empty() {
+            //     Err(nom::Err::Failure(parse::Error{
+            //         errors:vec![(extra2, nom::error::ErrorKind::NonEmpty)],
+            //         continue(),
+            //     }))};
+
         } else {
             Ok((
                 extra,
+                // (extra,
+                // extra2,),
                 Self {
                     genre,
                     second,
