@@ -24,12 +24,16 @@ pub struct Year {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Note<'s>(&'s str);
+
+#[derive(Debug, PartialEq)]
 pub struct LC<'s> {
     genre: Genre<'s>,
     second: Second<'s>,
     third: Third<'s>,
     fourth: Option<Third<'s>>,
     year: Option<Year>,
+    note: Option<Note<'s>>, // Note bits at the end
 }
 
 impl<'a> Genre<'a> {
@@ -104,6 +108,14 @@ impl Year {
     }
 }
 
+impl<'a> Note<'a> {
+    // Implement note pieces here. Read whole string at the end and hold data
+    fn parse(i: parse::Input) -> parse::Result<Self> {
+        let (i, _) = opt(is_a(" "))(i)?;
+        let (i, note) = map_res(take(&'a str), str::parse)(i)?;
+    }
+} 
+
 impl<'a> LC<'a> {
     pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, nom::Err<parse::Error<&'a str>>> {
         if i.is_empty() {
@@ -120,6 +132,7 @@ impl<'a> LC<'a> {
         let (i, third) = Third::parse(i)?;
         let (i, fourth) = opt(Third::parse)(i)?;
         let (extra, year) = opt(Year::parse)(i)?;
+        let (extra, note) = opt(Note::parse)(i)?;
         if !extra.trim().is_empty() {
             Err(nom::Err::Failure(parse::Error {
                 errors: vec![(extra, nom::error::ErrorKind::NonEmpty)],
@@ -133,6 +146,7 @@ impl<'a> LC<'a> {
                     third,
                     fourth,
                     year,
+                    note,
                 },
             ))
         }
@@ -161,6 +175,7 @@ mod tests {
                 year: 2009,
                 suffix: None,
             }),
+            note: None,
         };
         let (_, lc) = LC::parse(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
@@ -181,6 +196,7 @@ mod tests {
                 year: 2005,
                 suffix: None,
             }),
+            note: None,
         };
         let (_, lc) = LC::parse(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
@@ -201,6 +217,7 @@ mod tests {
                 year: 1988,
                 suffix: Some('b'),
             }),
+            note: None,
         };
         let (_, lc) = LC::parse(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
@@ -224,6 +241,7 @@ mod tests {
                 year: 2004,
                 suffix: None,
             }),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -245,6 +263,7 @@ mod tests {
                 year: 2009,
                 suffix: None,
             }),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -264,6 +283,7 @@ mod tests {
             },
             fourth: None,
             year: None,
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -289,6 +309,7 @@ mod tests {
                 year: 2010,
                 suffix: None,
             }),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -314,6 +335,7 @@ mod tests {
                 year: 2010,
                 suffix: None,
             }),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -338,6 +360,7 @@ mod tests {
                 year: 2010,
                 suffix: None,
             }),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -364,6 +387,7 @@ mod tests {
                 year: 2002,
                 suffix: None,
             }),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -390,6 +414,7 @@ mod tests {
                 year: 2006,
                 suffix: None,
             }),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();

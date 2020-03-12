@@ -1,5 +1,5 @@
 #![feature(backtrace)]
-
+// this result is different. While normally result is an enum, this returns a <T> or an error which is muted. 
 use jane_eyre::Result;
 use serde::Deserialize;
 
@@ -10,7 +10,7 @@ struct Row {
 }
 
 fn main() -> Result<()> {
-    let mut reader = csv::Reader::from_path("./exploLib.csv")?;
+    let mut reader = csv::Reader::from_path("./exploLibMain.csv")?;
     let reader = reader.deserialize();
 
     for result in reader {
@@ -20,5 +20,6 @@ fn main() -> Result<()> {
         println!("{:?}", lc);
     }
 
+    // idiosyncracy of rust
     Ok(())
 }
