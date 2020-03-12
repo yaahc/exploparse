@@ -108,13 +108,17 @@ impl Year {
     }
 }
 
-impl<'a> Note<'a> {
+impl<'s> Note<'s> {
     // Implement note pieces here. Read whole string at the end and hold data
-    fn parse(i: parse::Input) -> parse::Result<Self> {
-        let (i, _) = opt(is_a(" "))(i)?;
-        let (i, note) = map_res(take(&'a str), str::parse)(i)?;
-    }
-} 
+    fn last_but_not_least(i: parse::Input) -> parse::Result<Self> {
+        if i.is_empty() {
+            Ok(None)
+        } else {
+            let (_, note) = Note::parse(i)?;
+            Ok(Some(note))
+        }
+    }    
+}
 
 impl<'a> LC<'a> {
     pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, nom::Err<parse::Error<&'a str>>> {
@@ -132,7 +136,7 @@ impl<'a> LC<'a> {
         let (i, third) = Third::parse(i)?;
         let (i, fourth) = opt(Third::parse)(i)?;
         let (extra, year) = opt(Year::parse)(i)?;
-        let (extra, note) = opt(Note::parse)(i)?;
+        let (extra, note) = opt(Note::last_but_not_least)(i)?;
         if !extra.trim().is_empty() {
             Err(nom::Err::Failure(parse::Error {
                 errors: vec![(extra, nom::error::ErrorKind::NonEmpty)],
