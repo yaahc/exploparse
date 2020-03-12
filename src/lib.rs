@@ -108,9 +108,9 @@ impl Year {
     }
 }
 
-impl<'a> Note<'a> {
+impl<'s> Note<'s> {
     // Implement note pieces here. Read whole string at the end and hold data
-    fn last_but_not_least(i: parse::Input) -> parse::Result<Self> {
+    fn last_but_not_least(i: parse::Input<'s>) -> parse::Result<'s, Self> {
         if i.is_empty() {
             Err(nom::Err::Error(parse::Error { errors: vec![(i, nom::error::ErrorKind::Eof)], }))
             //Ok(None)
