@@ -115,7 +115,7 @@ impl<'s> Note<'s> {
                 Err(nom::Err::Error(parse::Error { errors: vec![(i, nom::error::ErrorKind::Eof)], }))
         } else {
             let (_, note) = Note::last_but_not_least(i)?;
-            Ok((i, Note))
+            Ok((i, note))
         }
     }    
 }
