@@ -112,10 +112,10 @@ impl<'s> Note<'s> {
     // Implement note pieces here. Read whole string at the end and hold data
     fn last_but_not_least(i: parse::Input) -> parse::Result<Self> {
         if i.is_empty() {
-            Ok(None)
+                Err(nom::Err::Error(parse::Error { errors: vec![(i, nom::error::ErrorKind::Eof)], }))
         } else {
             let (_, note) = Note::last_but_not_least(i)?;
-            Ok(Some(note))
+            Ok((i, Note))
         }
     }    
 }
