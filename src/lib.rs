@@ -113,7 +113,6 @@ impl<'s> Note<'s> {
     fn last_but_not_least(i: parse::Input<'s>) -> parse::Result<'s, Self> {
         if i.is_empty() {
             Err(nom::Err::Error(parse::Error { errors: vec![(i, nom::error::ErrorKind::Eof)], }))
-            //Ok(None)
         } else {
             let note = Note(i);
             Ok((i, note))
@@ -124,47 +123,54 @@ impl<'s> Note<'s> {
 impl<'a> LC<'a> {
     pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, 
     nom::Err<parse::Error<&'a str>>> {
-        if i.is_empty() {
-            Ok(None)
-        } else {
+        if i.is_empty() { // Finds empty sets and handles them
+ 
+            // If you want to see empty LCCs
+            let (_, lc) = LC::parse(i)?;
+            Ok(Some(lc))
+
+            // If you don't want to see empty LCCs
+            // Ok(None)
+
+            // Don't use ';' here as it gets angry.
+            
+        } else { // Shows fixed LC otherwise
             let (_, lc) = LC::parse(i)?;
             Ok(Some(lc))
         }
     }
 
     pub fn parse(i: parse::Input<'a>) -> parse::Result<'a, Self> {
-        let (i, genre) = dbg!(Genre::parse(i)?);
-        let (i, second) = dbg!(Second::parse(i)?);
-        let (i, third) = dbg!(Third::parse(i)?);
-        let (i, fourth) = dbg!(opt(Third::parse)(i))?;
-        let (extra, year) = dbg!(opt(Year::parse)(i))?;
-        let (extra2, note) = dbg!(opt(Note::last_but_not_least)(i))?;
-        if !extra.trim().is_empty() {
-            Err(nom::Err::Failure(parse::Error {
-                errors: vec![(extra, nom::error::ErrorKind::NonEmpty)],
-            }));
-            // if !extra2.trim().is_empty() {
-            //     Err(nom::Err::Failure(parse::Error{
-            //         errors:vec![(extra2, nom::error::ErrorKind::NonEmpty)],
-            //         continue(),
-            //     }))};
+        // For debug purposes
+        // let (i, genre) = dbg!(Genre::parse(i)?);
+        // let (i, second) = dbg!(Second::parse(i)?);
+        // let (i, third) = dbg!(Third::parse(i)?);
+        // let (i, fourth) = dbg!(opt(Third::parse)(i))?;
+        // let (i, year) = dbg!(opt(Year::parse)(i))?;
+        // let (i, note) = dbg!(opt(Note::last_but_not_least)(i))?;
 
-        } else {
-            Ok((
-                extra,
-                // (extra,
-                // extra2,),
-                Self {
-                    genre,
-                    second,
-                    third,
-                    fourth,
-                    year,
-                    note,
-                },
-            ))
-        }
-    }
+        // Fully functioning
+        let (i, genre) = Genre::parse(i)?;
+        let (i, second) = Second::parse(i)?;
+        let (i, third) = Third::parse(i)?;
+        let (i, fourth) = opt(Third::parse)(i)?;
+        let (i, year) = opt(Year::parse)(i)?;
+        let (i, note) = opt(Note::last_but_not_least)(i)?;
+
+        //this OK is a tuple and expects 2 types
+    Ok((
+        i,
+        Self {
+            genre,
+            second,
+            third,
+            fourth,
+            year,
+            note,
+        },
+    ))
+
+}
 }
 
 #[cfg(test)]
@@ -434,4 +440,23 @@ mod tests {
         let (_, lc) = LC::parse(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
+
+// Test case no longer necessary
+    // #[test]
+    // //Row "Circ. desk"
+    // fn only_text() {
+    //     let lc = "Circ. desk";
+    //     dbg!(lc);
+    //     let expected = LC {
+    //         genre: Genre(None),
+    //         second: Second(None),
+    //         third: Third(None),
+    //         fourth: None,
+    //         year: None,
+    //         note: "Circ. desk",
+    //     };
+
+    //     let (_, lc) = LC::parse(lc).unwrap();
+    //     assert_eq!(expected,dbg!(lc));
+    // }
 }
