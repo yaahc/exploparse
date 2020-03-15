@@ -9,7 +9,7 @@ mod parse;
 pub struct Genre<'s>(&'s str);
 
 #[derive(Debug, PartialEq)]
-pub struct Second<'s>(&'s str);
+pub struct Second(f64);
 
 #[derive(Debug, PartialEq)]
 pub struct Third<'s> {
@@ -26,10 +26,48 @@ pub struct Year {
 #[derive(Debug, PartialEq)]
 pub struct LC<'s> {
     genre: Genre<'s>,
-    second: Second<'s>,
+    second: Second,
     third: Third<'s>,
     fourth: Option<Third<'s>>,
     year: Option<Year>,
+}
+
+use std::fmt;
+impl<'s> fmt::Display for LC<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.genre.0)?;
+        write!(f, " {}", self.second.0)?;
+
+        write!(f, " ")?;
+        write!(f, "{}", self.third)?;
+
+        if let Some(ref fourth) = self.fourth {
+            write!(f, " ")?;
+            write!(f, "{}", fourth)?;
+        }
+
+        if let Some(Year { ref year, ref suffix }) = self.year {
+            write!(f, " ")?;
+            write!(f, "{}", year)?;
+
+            if let Some(ref suffix) = suffix {
+                write!(f, "{}", suffix)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<'s> fmt::Display for Third<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.has_dot {
+            write!(f, ".")?;
+        }
+        write!(f, "{}", self.body)?;
+
+        Ok(())
+    }
 }
 
 impl<'a> Genre<'a> {
@@ -41,8 +79,8 @@ impl<'a> Genre<'a> {
     }
 }
 
-impl<'s> Second<'s> {
-    fn parse(i: parse::Input<'s>) -> parse::Result<'s, Self> {
+impl Second {
+    fn parse(i: parse::Input) -> parse::Result<Self> {
         let mut seen_dot = false;
         let mut prev = None;
         let mut end = None;
@@ -70,7 +108,7 @@ impl<'s> Second<'s> {
 
         let after = &i[end..];
         let second = &i[..end];
-        let second = second.trim();
+        let second = second.replace(" ", "").parse().unwrap();
 
         Ok((after, Second(second)))
     }
@@ -148,7 +186,7 @@ mod tests {
         let lc = "TD 224 .C3 C3723 2009";
         let expected = LC {
             genre: Genre("TD"),
-            second: Second("224"),
+            second: Second(224.0),
             third: Third {
                 has_dot: true,
                 body: "C3",
@@ -171,7 +209,7 @@ mod tests {
         let lc = "GB 658 .C43 2005";
         let expected = LC {
             genre: Genre("GB"),
-            second: Second("658"),
+            second: Second(658.0),
             third: Third {
                 has_dot: true,
                 body: "C43",
@@ -191,7 +229,7 @@ mod tests {
         let lc = "GC 21.5 .S56 1988b";
         let expected = LC {
             genre: Genre("GC"),
-            second: Second("21.5"),
+            second: Second(21.5),
             third: Third {
                 has_dot: true,
                 body: "S56",
@@ -211,7 +249,7 @@ mod tests {
         let lc = "TD224.C3 C3723 2004";
         let expected = LC {
             genre: Genre("TD"),
-            second: Second("224"),
+            second: Second(224.0),
             third: Third {
                 has_dot: true,
                 body: "C3",
@@ -235,7 +273,7 @@ mod tests {
         let lc = "QC 920 .Z38 2009 ";
         let expected = LC {
             genre: Genre("QC"),
-            second: Second("920"),
+            second: Second(920.0),
             third: Third {
                 has_dot: true,
                 body: "Z38",
@@ -257,7 +295,7 @@ mod tests {
         let lc = "QC 183 .G675";
         let expected = LC {
             genre: Genre("QC"),
-            second: Second("183"),
+            second: Second(183.0),
             third: Third {
                 has_dot: true,
                 body: "G675",
@@ -276,7 +314,7 @@ mod tests {
         let lc = "HD 1695 .K55 .V5 2010";
         let expected = LC {
             genre: Genre("HD"),
-            second: Second("1695"),
+            second: Second(1695.0),
             third: Third {
                 has_dot: true,
                 body: "K55",
@@ -301,7 +339,7 @@ mod tests {
         let lc = "HD 1695 .55 .K55 .V5 2010";
         let expected = LC {
             genre: Genre("HD"),
-            second: Second("1695 .55"),
+            second: Second(1695.55),
             third: Third {
                 has_dot: true,
                 body: "K55",
@@ -325,7 +363,7 @@ mod tests {
         let lc = "HD 1695 .55. K55. V5 2010";
         let expected = LC {
             genre: Genre("HD"),
-            second: Second("1695 .55"),
+            second: Second(1695.55),
             third: Third {
                 has_dot: true,
                 body: "K55",
@@ -344,6 +382,22 @@ mod tests {
         assert_eq!(expected, dbg!(lc));
     }
 
+    #[test]
+    fn round_trip() {
+        let lc = "HD 1695 .55. K55. V5 2010";
+        let expected = "HD 1695.55 .K55 .V5 2010";
+        let lc = LC::maybe_parse(lc).unwrap().unwrap().to_string();
+        assert_eq!(expected, lc);
+    }
+
+    #[test]
+    fn round_trip_no_float() {
+        let lc = "HD 1695 .K55 .V5 2010";
+        let expected = "HD 1695 .K55 .V5 2010";
+        let lc = LC::maybe_parse(lc).unwrap().unwrap().to_string();
+        assert_eq!(expected, lc);
+    }
+
     // Row { lc: "TD 225 .S25 H26x 2002" }
     #[test]
     fn trailing_char() {
@@ -351,7 +405,7 @@ mod tests {
         dbg!(lc);
         let expected = LC {
             genre: Genre("TD"),
-            second: Second("225"),
+            second: Second(225.0),
             third: Third {
                 has_dot: true,
                 body: "S25",
@@ -377,7 +431,7 @@ mod tests {
         dbg!(lc);
         let expected = LC {
             genre: Genre("G"),
-            second: Second("4364"),
+            second: Second(4364.0),
             third: Third {
                 has_dot: true,
                 body: "R6",
