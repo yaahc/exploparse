@@ -173,6 +173,7 @@ impl Year {
 impl<'s> Note<'s> {
     // Implement note pieces here. Read whole string at the end and hold data
     fn last_but_not_least(i: parse::Input<'s>) -> parse::Result<'s, Self> {
+        let i = i.trim();
         if i.is_empty() {
             Err(nom::Err::Error(parse::Error {
                 errors: vec![(i, nom::error::ErrorKind::Eof)],
@@ -329,7 +330,7 @@ mod tests {
                 year: 2009,
                 suffix: None,
             }),
-            note: Some(Note(" ")),
+            note: None,
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
@@ -501,6 +502,33 @@ mod tests {
 
         let (_, lc) = LC::parse(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
+    }
+
+
+    #[test]
+    fn with_note() {
+        let lc = "LB 1028 .L43 2000 vol. tg ";
+        let expected_round_trip = "LB 1028 .L43 2000 vol. tg";
+        dbg!(lc);
+        let expected = LC {
+            genre: Genre("LB"),
+            second: Second(1028.0),
+            third: Third {
+                has_dot: true,
+                body: "L43",
+            },
+            fourth: None,
+            year: Some(Year {
+                year: 2000,
+                suffix: None,
+            }),
+            note: Some(Note("vol. tg")),
+        };
+
+        let lc = LC::maybe_parse(lc).unwrap().unwrap();
+        assert_eq!(&expected, dbg!(&lc));
+        let round_trip = lc.to_string();
+        assert_eq!(expected_round_trip, round_trip);
     }
 
     // Test case no longer necessary
