@@ -16,6 +16,7 @@ struct Row {
 fn main() -> Result<()> {
     let mut reader = csv::Reader::from_path("./exploLibMain.csv")?;
     let mut writer = csv::Writer::from_path("./exploLibOut.csv")?;
+    let mut bad_rows = vec![];
     let header = reader.headers()?.clone();
     writer.write_record(&header)?;
     let records = reader.records();
@@ -32,13 +33,12 @@ fn main() -> Result<()> {
                 new_record.extend(record.iter().skip(1));
                 writer.write_record(&new_record)?;
             }
-            Ok(None) => {
-                println!("Row {:?} appears to not contain an lc field", row);
-            }
-            Err(e) => {
-                println!("Row {:?} encountered error: {:?}", row, e);
-            }
+            _ => bad_rows.push(record),
         }
+    }
+
+    for record in bad_rows {
+        writer.write_record(&record)?;
     }
 
     // idiosyncracy of rust
