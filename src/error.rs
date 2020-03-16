@@ -1,7 +1,7 @@
 pub use eyre::*;
 
 use indenter::Indented;
-use nom::error::{ErrorKind as NomErrorKind, ParseError as NomParseError};
+use nom::error::{VerboseErrorKind, ParseError as NomParseError};
 use std::fmt;
 use std::fmt::Write;
 use std::any::{Any, TypeId};
@@ -34,7 +34,7 @@ impl fmt::Debug for ErrReport {
 pub struct ExploContext {
     backtrace: Backtrace,
     span_trace: SpanTrace,
-    nom_errors: Vec<(String, NomErrorKind)>,
+    nom_errors: Vec<(String, VerboseErrorKind)>,
 }
 
 impl EyreContext for ExploContext {
@@ -97,7 +97,7 @@ impl EyreContext for ExploContext {
 
         for (ind, (i, k)) in self.nom_errors.iter().enumerate() {
             writeln!(f)?;
-            write!(Indented::numbered(f, ind), "input={:?} NomKind={:?}", i, k)?;
+            write!(Indented::numbered(f, ind), "{:?} input={:?}", k, i)?;
         }
 
         let span_trace = &self.span_trace;
@@ -120,16 +120,29 @@ impl EyreContext for ExploContext {
 
 impl<'a> NomParseError<&'a str> for ErrReport
 {
-    fn from_error_kind(input: &'a str, kind: NomErrorKind) -> Self {
+    fn from_error_kind(input: &'a str, kind: nom::error::ErrorKind) -> Self {
         let mut inner: eyre::ErrReport<ExploContext> = eyre::eyre!("unable to parse fields as an LC");
-        inner.context_mut().nom_errors.push((input.to_string(), kind));
+        inner.context_mut().nom_errors.push((input.to_string(), VerboseErrorKind::Nom(kind)));
         Self {
             inner
         }
     }
 
-    fn append(input: &'a str, kind: NomErrorKind, mut other: Self) -> Self {
-        other.inner.context_mut().nom_errors.push((input.to_string(), kind));
+    fn from_char(input: &'a str, c: char) -> Self {
+        let mut inner: eyre::ErrReport<ExploContext> = eyre::eyre!("Found unexpected character");
+        inner.context_mut().nom_errors.push((input.to_string(), VerboseErrorKind::Char(c)));
+        Self {
+            inner
+        }
+    }
+
+    fn append(input: &'a str, kind: nom::error::ErrorKind, mut other: Self) -> Self {
+        other.inner.context_mut().nom_errors.push((input.to_string(), VerboseErrorKind::Nom(kind)));
+        other
+    }
+
+    fn add_context(input: &'a str, ctx: &'static str, mut other: Self) -> Self {
+        other.inner.context_mut().nom_errors.push((input.to_string(), VerboseErrorKind::Context(ctx)));
         other
     }
 }
