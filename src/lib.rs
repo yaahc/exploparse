@@ -28,12 +28,12 @@ pub struct Note<'s>(&'s str);
 
 #[derive(Debug, PartialEq)]
 pub struct LC<'s> {
-    genre: Genre<'s>,
-    second: Second,
-    third: Third<'s>,
-    fourth: Option<Third<'s>>,
-    year: Option<Year>,
-    note: Option<Note<'s>>, // Note bits at the end
+    pub genre: Genre<'s>,
+    pub second: Second,
+    pub third: Third<'s>,
+    pub fourth: Option<Third<'s>>,
+    pub year: Option<Year>,
+    pub note: Option<Note<'s>>, // Note bits at the end
 }
 
 use std::fmt;
