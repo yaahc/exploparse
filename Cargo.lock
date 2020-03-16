@@ -92,7 +92,6 @@ name = "jane-eyre"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18e9becd6010fb0e5c51e1f9f0d65e39bdac8a25e1612531d3e9d464e9e842ee"
-
 dependencies = [
  "eyre",
  "indenter",

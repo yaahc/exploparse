@@ -321,7 +321,7 @@ mod tests {
                 year: 2009,
                 suffix: None,
             }),
-            note: None,
+            note: Some(Note(" ")),
         };
 
         let (_, lc) = LC::parse(lc).unwrap();
