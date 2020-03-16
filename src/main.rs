@@ -4,7 +4,6 @@ extern crate csv;
 
 // this result is different. While normally result is an enum, this returns a <T> or an error which is muted.
 use csv::StringRecord;
-use jane_eyre::Result;
 use serde::Deserialize;
 use tracing_subscriber::{prelude::*, registry::Registry};
 use tracing_error::ErrorLayer;
@@ -17,7 +16,7 @@ struct Row {
 }
 
 #[spandoc]
-fn main() -> Result<()> {
+fn main() -> Result<(), exploparse::ErrReport> {
     color_backtrace::install();
 
     let subscriber = Registry::default()

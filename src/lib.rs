@@ -1,23 +1,26 @@
-#![feature(error_iter)]
+#![feature(backtrace, error_iter)]
 
 use nom::bytes::complete::{is_a, take, take_while, take_while_m_n};
 use nom::character::complete::anychar;
 use nom::combinator::{map, map_res, opt, verify};
 use nom::error::context;
 use tracing::{span, Level, instrument};
+use nom::Err;
+pub use error::ErrReport;
+use nom::error::ParseError;
 
-mod parse;
+mod error;
 
 #[derive(Debug, PartialEq)]
-pub struct Genre<'s>(&'s str);
+pub struct Genre<'a>(&'a str);
 
 #[derive(Debug, PartialEq)]
 pub struct Second(f64);
 
 #[derive(Debug, PartialEq)]
-pub struct Third<'s> {
+pub struct Third<'a> {
     has_dot: bool,
-    body: &'s str,
+    body: &'a str,
 }
 
 #[derive(Debug, PartialEq)]
@@ -27,20 +30,20 @@ pub struct Year {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Note<'s>(&'s str);
+pub struct Note<'a>(&'a str);
 
 #[derive(Debug, PartialEq)]
-pub struct LC<'s> {
-    pub genre: Genre<'s>,
+pub struct LC<'a> {
+    pub genre: Genre<'a>,
     pub second: Second,
-    pub third: Third<'s>,
-    pub fourth: Option<Third<'s>>,
+    pub third: Third<'a>,
+    pub fourth: Option<Third<'a>>,
     pub year: Option<Year>,
-    pub note: Option<Note<'s>>, // Note bits at the end
+    pub note: Option<Note<'a>>, // Note bits at the end
 }
 
 use std::fmt;
-impl<'s> fmt::Display for LC<'s> {
+impl<'a> fmt::Display for LC<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.genre.0)?;
         write!(f, " {}", self.second.0)?;
@@ -75,7 +78,7 @@ impl<'s> fmt::Display for LC<'s> {
     }
 }
 
-impl<'s> fmt::Display for Third<'s> {
+impl<'a> fmt::Display for Third<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.has_dot {
             write!(f, ".")?;
@@ -88,7 +91,7 @@ impl<'s> fmt::Display for Third<'s> {
 
 impl<'a> Genre<'a> {
     #[instrument]
-    fn parse_genre(i: &'a str) -> parse::Result<'a, Self> {
+    fn parse_genre(i: &'a str) -> Result<(&'a str, Self), nom::Err<ErrReport>> {
         context(
             "Genre",
             map(take_while_m_n(1, 2, nom::AsChar::is_alpha), Genre),
@@ -98,7 +101,7 @@ impl<'a> Genre<'a> {
 
 impl Second {
     #[instrument]
-    fn parse_second(i: parse::Input) -> parse::Result<Self> {
+    fn parse_second(i: &str) -> Result<(&str, Self), nom::Err<ErrReport>> {
         let mut seen_dot = false;
         let mut prev = None;
         let mut end = None;
@@ -137,16 +140,16 @@ impl Second {
         let _guard = span.enter();
 
         let second = input.parse()
-            .map_err(parse::Error::from)
+            .map_err(ErrReport::from)
             .map_err(nom::Err::Error)?;
 
         Ok((after, Second(second)))
     }
 }
 
-impl<'s> Third<'s> {
+impl<'a> Third<'a> {
     #[instrument]
-    fn parse_third(i: parse::Input<'s>) -> parse::Result<'s, Self> {
+    fn parse_third(i: &'a str) -> Result<(&'a str, Self), nom::Err<ErrReport>> {
         let (i, _) = opt(is_a(" "))(i)?;
         let (i, has_dot) = map(opt(nom::character::complete::char('.')), |dot| {
             dot.is_some()
@@ -165,7 +168,7 @@ impl<'s> Third<'s> {
 
 impl Year {
     #[instrument]
-    fn parse_year(i: parse::Input) -> parse::Result<Self> {
+    fn parse_year(i: &str) -> Result<(&str, Self), nom::Err<ErrReport>> {
         let (i, _) = opt(is_a(" "))(i)?;
         let (i, year) = map_res(take(4usize), str::parse)(i)?;
         let (i, suffix) = opt(verify(anychar, |c| c.is_alphabetic()))(i)?;
@@ -174,16 +177,13 @@ impl Year {
     }
 }
 
-impl<'s> Note<'s> {
+impl<'a> Note<'a> {
     // Implement note pieces here. Read whole string at the end and hold data
     #[instrument]
-    fn parse_note(i: parse::Input<'s>) -> parse::Result<'s, Self> {
+    fn parse_note(i: &'a str) -> Result<(&'a str, Self), nom::Err<ErrReport>> {
         let i = i.trim();
         if i.is_empty() {
-            Err(nom::Err::Error(parse::Error {
-                error: jane_eyre::ErrReport::from(parse::Kind::Nom),
-                nom_errors: vec![(i.to_string(), nom::error::ErrorKind::Eof)],
-            }))
+            return Err(Err::Error(ErrReport::from_error_kind(i, nom::error::ErrorKind::Eof).into()));
         } else {
             let note = Note(i);
             Ok((i, note))
@@ -192,7 +192,7 @@ impl<'s> Note<'s> {
 }
 
 impl<'a> LC<'a> {
-    pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, parse::Error> {
+    pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, ErrReport> {
         if i.is_empty() {
             Ok(None)
         } else {
@@ -207,7 +207,7 @@ impl<'a> LC<'a> {
     }
 
     #[instrument]
-    pub fn parse_lc(i: parse::Input<'a>) -> parse::Result<'a, Self> {
+    pub fn parse_lc(i: &'a str) -> Result<(&'a str, Self), nom::Err<ErrReport>> {
         let (i, genre) = Genre::parse_genre(i)?;
         let (i, second) = Second::parse_second(i)?;
         let (i, third) = Third::parse_third(i)?;
