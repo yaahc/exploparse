@@ -1,7 +1,10 @@
+#![feature(error_iter)]
+
 use nom::bytes::complete::{is_a, take, take_while, take_while_m_n};
 use nom::character::complete::anychar;
 use nom::combinator::{map, map_res, opt, verify};
 use nom::error::context;
+use tracing::{span, Level, instrument};
 
 mod parse;
 
@@ -84,7 +87,8 @@ impl<'s> fmt::Display for Third<'s> {
 }
 
 impl<'a> Genre<'a> {
-    fn parse(i: &'a str) -> parse::Result<'a, Self> {
+    #[instrument]
+    fn parse_genre(i: &'a str) -> parse::Result<'a, Self> {
         context(
             "Genre",
             map(take_while_m_n(1, 2, nom::AsChar::is_alpha), Genre),
@@ -93,7 +97,8 @@ impl<'a> Genre<'a> {
 }
 
 impl Second {
-    fn parse(i: parse::Input) -> parse::Result<Self> {
+    #[instrument]
+    fn parse_second(i: parse::Input) -> parse::Result<Self> {
         let mut seen_dot = false;
         let mut prev = None;
         let mut end = None;
@@ -121,29 +126,27 @@ impl Second {
             prev = Some(c);
         }
 
-        let end = end.ok_or_else(|| {
-            nom::Err::Error(parse::Error {
-                errors: vec![(i, nom::error::ErrorKind::Eof)],
-            })
-        })?;
+        let end = end.unwrap_or_else(|| i.len());
 
         let after = &i[end..];
         let second = &i[..end];
-        let second = second
-            .replace(" ", "")
-            .parse()
-            .map_err(|_| {
-                nom::Err::Error(parse::Error {
-                    errors: vec![(i, nom::error::ErrorKind::MapRes)],
-                })
-            })?;
+        let input = second
+            .replace(" ", "");
+
+        let span = span!(Level::ERROR, "Second::parse_float", ?input);
+        let _guard = span.enter();
+
+        let second = input.parse()
+            .map_err(parse::Error::from)
+            .map_err(nom::Err::Error)?;
 
         Ok((after, Second(second)))
     }
 }
 
 impl<'s> Third<'s> {
-    fn parse(i: parse::Input<'s>) -> parse::Result<'s, Self> {
+    #[instrument]
+    fn parse_third(i: parse::Input<'s>) -> parse::Result<'s, Self> {
         let (i, _) = opt(is_a(" "))(i)?;
         let (i, has_dot) = map(opt(nom::character::complete::char('.')), |dot| {
             dot.is_some()
@@ -161,7 +164,8 @@ impl<'s> Third<'s> {
 }
 
 impl Year {
-    fn parse(i: parse::Input) -> parse::Result<Self> {
+    #[instrument]
+    fn parse_year(i: parse::Input) -> parse::Result<Self> {
         let (i, _) = opt(is_a(" "))(i)?;
         let (i, year) = map_res(take(4usize), str::parse)(i)?;
         let (i, suffix) = opt(verify(anychar, |c| c.is_alphabetic()))(i)?;
@@ -172,11 +176,13 @@ impl Year {
 
 impl<'s> Note<'s> {
     // Implement note pieces here. Read whole string at the end and hold data
-    fn last_but_not_least(i: parse::Input<'s>) -> parse::Result<'s, Self> {
+    #[instrument]
+    fn parse_note(i: parse::Input<'s>) -> parse::Result<'s, Self> {
         let i = i.trim();
         if i.is_empty() {
             Err(nom::Err::Error(parse::Error {
-                errors: vec![(i, nom::error::ErrorKind::Eof)],
+                error: jane_eyre::ErrReport::from(parse::Kind::Nom),
+                nom_errors: vec![(i.to_string(), nom::error::ErrorKind::Eof)],
             }))
         } else {
             let note = Note(i);
@@ -186,26 +192,29 @@ impl<'s> Note<'s> {
 }
 
 impl<'a> LC<'a> {
-    pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, nom::Err<parse::Error<&'a str>>> {
+    pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, parse::Error> {
         if i.is_empty() {
             Ok(None)
         } else {
             // Shows fixed LC otherwise
-            let (_, lc) = LC::parse(i)?;
+            let (_, lc) = LC::parse_lc(i)
+                .map_err(|e| match e {
+                    nom::Err::Error(e) | nom::Err::Failure(e) => e,
+                    _ => unreachable!(),
+                })?;
             Ok(Some(lc))
         }
     }
 
-    pub fn parse(i: parse::Input<'a>) -> parse::Result<'a, Self> {
-        // Fully functioning
-        let (i, genre) = Genre::parse(i)?;
-        let (i, second) = Second::parse(i)?;
-        let (i, third) = Third::parse(i)?;
-        let (i, fourth) = opt(Third::parse)(i)?;
-        let (i, year) = opt(Year::parse)(i)?;
-        let (i, note) = opt(Note::last_but_not_least)(i)?;
+    #[instrument]
+    pub fn parse_lc(i: parse::Input<'a>) -> parse::Result<'a, Self> {
+        let (i, genre) = Genre::parse_genre(i)?;
+        let (i, second) = Second::parse_second(i)?;
+        let (i, third) = Third::parse_third(i)?;
+        let (i, fourth) = opt(Third::parse_third)(i)?;
+        let (i, year) = opt(Year::parse_year)(i)?;
+        let (i, note) = opt(Note::parse_note)(i)?;
 
-        //this OK is a tuple and expects 2 types
         Ok((
             i,
             Self {
@@ -244,7 +253,7 @@ mod tests {
             }),
             note: None,
         };
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -265,7 +274,7 @@ mod tests {
             }),
             note: None,
         };
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -286,7 +295,7 @@ mod tests {
             }),
             note: None,
         };
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -311,7 +320,7 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -333,7 +342,7 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -353,7 +362,7 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -379,7 +388,7 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -405,7 +414,7 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -430,7 +439,7 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -473,7 +482,7 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
 
@@ -500,10 +509,9 @@ mod tests {
             note: None,
         };
 
-        let (_, lc) = LC::parse(lc).unwrap();
+        let (_, lc) = LC::parse_lc(lc).unwrap();
         assert_eq!(expected, dbg!(lc));
     }
-
 
     #[test]
     fn with_note() {
@@ -531,6 +539,34 @@ mod tests {
         assert_eq!(expected_round_trip, round_trip);
     }
 
+    #[test]
+    fn mid_dot() {
+        let lc_string = "QB 46 .L744 v.82 2000";
+        dbg!(lc_string);
+        let expected = LC {
+            genre: Genre("QB"),
+            second: Second(46.0),
+            third: Third {
+                has_dot: true,
+                body: "L744",
+            },
+            fourth: Some(Third {
+                has_dot: true,
+                body: "v82",
+            }),
+            year: Some(Year {
+                year: 2000,
+                suffix: None,
+            }),
+            note: None,
+        };
+
+        let lc = LC::maybe_parse(lc_string).unwrap().unwrap();
+        assert_eq!(&expected, dbg!(&lc));
+        let round_trip = lc.to_string();
+        assert_eq!(lc_string, round_trip);
+    }
+
     // Test case no longer necessary
     // #[test]
     // //Row "Circ. desk"
@@ -546,7 +582,7 @@ mod tests {
     //         note: "Circ. desk",
     //     };
 
-    //     let (_, lc) = LC::parse(lc).unwrap();
+    //     let (_, lc) = LC::parse_lc(lc).unwrap();
     //     assert_eq!(expected,dbg!(lc));
     // }
 }
