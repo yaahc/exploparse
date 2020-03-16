@@ -50,13 +50,22 @@ impl<'s> fmt::Display for LC<'s> {
             write!(f, "{}", fourth)?;
         }
 
-        if let Some(Year { ref year, ref suffix }) = self.year {
+        if let Some(Year {
+            ref year,
+            ref suffix,
+        }) = self.year
+        {
             write!(f, " ")?;
             write!(f, "{}", year)?;
 
             if let Some(ref suffix) = suffix {
                 write!(f, "{}", suffix)?;
             }
+        }
+
+        if let Some(ref note) = self.note {
+            write!(f, " ")?;
+            write!(f, "{}", note.0)?;
         }
 
         Ok(())
@@ -90,29 +99,44 @@ impl Second {
         let mut end = None;
         for (ind, c) in i.chars().enumerate() {
             match c {
-                '.' => if seen_dot {
-                    end = Some(ind);
-                    break;
-                } else {
-                    seen_dot = true;
-                },
-                'A'..='Z' => if prev == Some('.') {
-                    end = Some(ind - 1);
-                    break;
-                } else {
-                    end = Some(ind);
-                    break;
+                '.' => {
+                    if seen_dot {
+                        end = Some(ind);
+                        break;
+                    } else {
+                        seen_dot = true;
+                    }
+                }
+                'A'..='Z' => {
+                    if prev == Some('.') {
+                        end = Some(ind - 1);
+                        break;
+                    } else {
+                        end = Some(ind);
+                        break;
+                    }
                 }
                 _ => (),
             }
             prev = Some(c);
         }
 
-        let end = end.ok_or_else(|| nom::Err::Error(parse::Error { errors: vec![(i, nom::error::ErrorKind::Eof)], }))?;
+        let end = end.ok_or_else(|| {
+            nom::Err::Error(parse::Error {
+                errors: vec![(i, nom::error::ErrorKind::Eof)],
+            })
+        })?;
 
         let after = &i[end..];
         let second = &i[..end];
-        let second = second.replace(" ", "").parse().unwrap();
+        let second = second
+            .replace(" ", "")
+            .parse()
+            .map_err(|_| {
+                nom::Err::Error(parse::Error {
+                    errors: vec![(i, nom::error::ErrorKind::MapRes)],
+                })
+            })?;
 
         Ok((after, Second(second)))
     }
@@ -150,43 +174,28 @@ impl<'s> Note<'s> {
     // Implement note pieces here. Read whole string at the end and hold data
     fn last_but_not_least(i: parse::Input<'s>) -> parse::Result<'s, Self> {
         if i.is_empty() {
-            Err(nom::Err::Error(parse::Error { errors: vec![(i, nom::error::ErrorKind::Eof)], }))
+            Err(nom::Err::Error(parse::Error {
+                errors: vec![(i, nom::error::ErrorKind::Eof)],
+            }))
         } else {
             let note = Note(i);
             Ok((i, note))
         }
-    }    
+    }
 }
 
 impl<'a> LC<'a> {
-    pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, 
-    nom::Err<parse::Error<&'a str>>> {
-        if i.is_empty() { // Finds empty sets and handles them
- 
-            // If you want to see empty LCCs
-            let (_, lc) = LC::parse(i)?;
-            Ok(Some(lc))
-
-            // If you don't want to see empty LCCs
-            // Ok(None)
-
-            // Don't use ';' here as it gets angry.
-            
-        } else { // Shows fixed LC otherwise
+    pub fn maybe_parse(i: &'a str) -> Result<Option<LC<'a>>, nom::Err<parse::Error<&'a str>>> {
+        if i.is_empty() {
+            Ok(None)
+        } else {
+            // Shows fixed LC otherwise
             let (_, lc) = LC::parse(i)?;
             Ok(Some(lc))
         }
     }
 
     pub fn parse(i: parse::Input<'a>) -> parse::Result<'a, Self> {
-        // For debug purposes
-        // let (i, genre) = dbg!(Genre::parse(i)?);
-        // let (i, second) = dbg!(Second::parse(i)?);
-        // let (i, third) = dbg!(Third::parse(i)?);
-        // let (i, fourth) = dbg!(opt(Third::parse)(i))?;
-        // let (i, year) = dbg!(opt(Year::parse)(i))?;
-        // let (i, note) = dbg!(opt(Note::last_but_not_least)(i))?;
-
         // Fully functioning
         let (i, genre) = Genre::parse(i)?;
         let (i, second) = Second::parse(i)?;
@@ -196,19 +205,18 @@ impl<'a> LC<'a> {
         let (i, note) = opt(Note::last_but_not_least)(i)?;
 
         //this OK is a tuple and expects 2 types
-    Ok((
-        i,
-        Self {
-            genre,
-            second,
-            third,
-            fourth,
-            year,
-            note,
-        },
-    ))
-
-}
+        Ok((
+            i,
+            Self {
+                genre,
+                second,
+                third,
+                fourth,
+                year,
+                note,
+            },
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -495,7 +503,7 @@ mod tests {
         assert_eq!(expected, dbg!(lc));
     }
 
-// Test case no longer necessary
+    // Test case no longer necessary
     // #[test]
     // //Row "Circ. desk"
     // fn only_text() {
