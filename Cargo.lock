@@ -68,9 +68,9 @@ dependencies = [
 
 [[package]]
 name = "eyre"
-version = "0.3.3"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e49bcdca5df8db47f31a186a9056fb5b5c03836912693cd4281faf5dbcccd94"
+checksum = "807338d612544ccc2d30447f41eded821d1bf71352435c410abc0b3be5595cb6"
 dependencies = [
  "indenter",
 ]
@@ -92,6 +92,7 @@ name = "jane-eyre"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18e9becd6010fb0e5c51e1f9f0d65e39bdac8a25e1612531d3e9d464e9e842ee"
+
 dependencies = [
  "eyre",
  "indenter",
